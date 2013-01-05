@@ -12,13 +12,9 @@
 #define COMMA_FIX	5
 #define COMMA_SATS	6
 
-// Test - Motown
-//#define TARGET_LAT	40.796154
-//#define TARGET_LON	74.474207
-
-// Sunrise
-#define TARGET_LAT	41.21815
-#define TARGET_LON	74.720367
+// Target Coordinates
+#define TARGET_LAT	ADD_YOUR_OWN!
+#define TARGET_LON	ADD_YOUR_OWN!
 
 // Main Data Structure
 gps_data_t gps;

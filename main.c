@@ -7,7 +7,6 @@
 #include "LCD_lib.h"
 #include "powerlib.h"
 #include "gps.h"
-#include "eeprom_lib.h"
 
 #pragma config FOSC = INTIO67
 #pragma config HFOFST = ON
@@ -67,18 +66,6 @@ void main()
 	// Start up	
 	lcd_write(acquiringString);	 
 	
-	#ifdef RESET_PROG
-	ee_write(0, 0);
-	#endif
-
-	a = ee_read(0);
-	if(a == 0)
-	{
-		servo_write(20);
-	} else {
-		// Already found code...	
-	}
-
 	while(1)
 	{
 		static char foundGPS = 0;
