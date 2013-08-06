@@ -6,7 +6,10 @@
 #include "servo_lib.h"
 #include "LCD_lib.h"
 #include "powerlib.h"
-#include "gps.h"
+
+// Added 8/5/2013
+#include "gpggalib.h"
+#include "gpsmath.h"
 
 #pragma config FOSC = INTIO67
 #pragma config HFOFST = ON
@@ -18,8 +21,6 @@
 
 void InterruptHandlerHigh(void);
 void ifFix(void);
-
-gps_data_t *gpsPtr;
 
 char acquiringString[] = "Acquiring GPS...";
 char acquiredString[] = "GPS Acquired!   ";
@@ -33,8 +34,9 @@ char gotIt2String[] = 	"Opening the box.";
 char blankString[] = 	"                ";
 char distanceCalc[17];
 
-unsigned char a;
-unsigned char b;
+static volatile char gpsDataCount;
+static unsigned char a;
+static unsigned char b;
 
 void main()
 {
@@ -53,12 +55,10 @@ void main()
 	BAUDCON1bits.CKTXP = 0;
 
 	// Initialize Peripherals
-	gps_init();
+	gpgga_init();
 	lcd_init();
 	servo_init();
-
-	// Get valid GPS Data
-	gpsPtr = gps_getPointer();
+	gpsDataCount = 0;
 
 	// Enable Global Interrupts
 	INTCONbits.GIEH = 1;
@@ -68,32 +68,16 @@ void main()
 	
 	while(1)
 	{
-		static char foundGPS = 0;
 		static int timeout = 180;
-		unsigned int i;
 
-		i = 0;
-
-		while(i < 10)
+		// Wait for 10 valid strings
+		if(gpsDataCount > 10)
 		{
-			gps_parse();
-		    if(gpsPtr->fix != 0)
-		    {	
-				i = 0;
-				lcd_setLine(1);
-				lcd_write(acquiredString);
-				lcd_setLine(2);
-				lcd_write(blankString);
-				while(i < 5000)
-				{
-					gps_parse();
-					Delay1KTCYx(1);
-					i++;
-				}
-				ifFix();	
-			}
-			Delay10KTCYx(8);
-			i++;
+			lcd_setLine(1);
+			lcd_write(acquiredString);
+			lcd_setLine(2);
+			lcd_write(blankString);
+			ifFix();			
 		}
 	
 		if(timeout == 0)
@@ -118,6 +102,10 @@ void main()
 			timeoutString[12] = ' ';			
 		}	 
 		lcd_write(timeoutString);
+
+		// Delay ~1s
+		Delay10KTCYx(80);
+
 		timeout--;
 	}
 }
@@ -125,12 +113,11 @@ void main()
 void ifFix(void)
 {
 	// Process the distance into a usable form
-	float d = gps_computeDistance();
-	int pre_dec = (int)(d);
-	long post_dec = (long)((d * 10000) - (long)pre_dec*10000);
+	float currentDistance = gpsmath_computeDistance(gpgga_getLastGpsData(), 41.0, 67.0);
+	int pre_dec = (int)(currentDistance);
+	long post_dec = (long)((currentDistance * 10000) - (long)pre_dec*10000);
 	char *temp_ptr;
 	char countdown = 9;
-	
 	
 	lcd_setLine(2);
 	lcd_write(distanceString);
@@ -155,9 +142,8 @@ void ifFix(void)
 	lcd_setLine(3);
 	lcd_write(distanceCalc);
 	
-	
 	// If we are within .25 miles:
-	if(d < .25)
+	if(currentDistance < .25)
 	{
 	
 		Delay10KTCYx(100);
@@ -183,7 +169,6 @@ void ifFix(void)
 		Delay10KTCYx(100);
 		pwr_off();
 	} else {
-
 		// Shutdown sequence
 		while(countdown != 0)
 		{
@@ -218,7 +203,7 @@ void InterruptHandlerHigh()
 	if(PIR1bits.RC1IF)
 	{
 		unsigned char temp = Read1USART();
-		gps_receiveCharacter(temp);
+		gpsDataCount += gpgga_feedCharacter(temp);
 	}
 	// If interrupt is from timer 0 (slow):
 	if(INTCONbits.TMR0IF)
